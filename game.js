@@ -41,7 +41,7 @@ function calculateBlockSize(screenWidth) {
   // Make blocks fit nicely on screen - aim for ~80% of width for the tower
   const availableWidth = screenWidth * 0.8;
   const blockSize = Math.floor(availableWidth / TOWER_COLS);
-  
+
   // Clamp between reasonable min/max for mobile
   return Math.max(40, Math.min(blockSize, 80));
 }
@@ -55,7 +55,7 @@ function init() {
   const height = window.innerHeight - 60; // Account for score panel
   canvas.width = width;
   canvas.height = height;
-  
+
   // Calculate block size based on screen
   BLOCK_SIZE = calculateBlockSize(width);
 
@@ -219,7 +219,7 @@ function handleResize() {
   render.options.height = height;
   render.canvas.width = width;
   render.canvas.height = height;
-  
+
   // Recalculate block size
   BLOCK_SIZE = calculateBlockSize(width);
 
