@@ -4,10 +4,7 @@ const Render = Matter.Render;
 const World = Matter.World;
 const Bodies = Matter.Bodies;
 const Body = Matter.Body;
-const Constraint = Matter.Constraint;
 const Composite = Matter.Composite;
-const Mouse = Matter.Mouse;
-const MouseConstraint = Matter.MouseConstraint;
 const Events = Matter.Events;
 
 // Game state
@@ -16,16 +13,15 @@ let render;
 let world;
 let canvas;
 let blocks = [];
-let constraints = [];
 let ground;
 let walls = [];
-let blockCount = 20;
+let blockCount = 0;
 let canDropBlock = true;
-let dropCooldown = 500; // ms
+let dropCooldown = 300; // ms
 
 // Block properties
-const BLOCK_WIDTH = 60;
-const BLOCK_HEIGHT = 30;
+const BLOCK_WIDTH = 70;
+const BLOCK_HEIGHT = 35;
 const BLOCK_COLORS = [
   "#FF6B6B",
   "#4ECDC4",
@@ -37,6 +33,10 @@ const BLOCK_COLORS = [
   "#85C1E2",
 ];
 
+// Tower configuration
+const TOWER_ROWS = 5;
+const TOWER_COLS = 4;
+
 // Initialize the game
 function init() {
   canvas = document.getElementById("game-canvas");
@@ -47,14 +47,19 @@ function init() {
   canvas.width = width;
   canvas.height = height;
 
-  // Create engine
+  // Create engine with better physics settings
   engine = Engine.create({
     gravity: {
       x: 0,
-      y: 1,
+      y: 0.8, // Slightly reduced gravity for better control
     },
   });
+
   world = engine.world;
+
+  // Better physics settings
+  engine.positionIterations = 10;
+  engine.velocityIterations = 8;
 
   // Create renderer
   render = Render.create({
@@ -65,6 +70,7 @@ function init() {
       height: height,
       wireframes: false,
       background: "#1a1a2e",
+      pixelRatio: window.devicePixelRatio || 1,
     },
   });
 
@@ -115,139 +121,47 @@ function init() {
   // Run the engine
   Engine.run(engine);
   Render.run(render);
-
-  // Update physics to make blocks more bouncy/jelly-like
-  engine.timing.timeScale = 1;
 }
 
-// Create initial tower of blocks
+// Create initial tower of blocks in a wall/pyramid formation
 function createInitialTower() {
   const centerX = canvas.width / 2;
-  const startY = canvas.height - 40;
-  const numBlocks = 20;
+  const startY = canvas.height - 30; // Start just above ground
 
-  for (let i = 0; i < numBlocks; i++) {
-    const x = centerX + (Math.random() - 0.5) * 5; // Slight random offset
-    const y = startY - i * BLOCK_HEIGHT;
+  // Create a 4x5 wall of blocks (4 wide, 5 tall)
+  for (let row = 0; row < TOWER_ROWS; row++) {
+    for (let col = 0; col < TOWER_COLS; col++) {
+      const x =
+        centerX - ((TOWER_COLS - 1) * BLOCK_WIDTH) / 2 + col * BLOCK_WIDTH;
+      const y = startY - row * BLOCK_HEIGHT;
 
-    createBlock(x, y, true);
+      createBlock(x, y);
+    }
   }
 
   updateBlockCount();
 }
 
-// Create a single soft/jelly block
-function createBlock(x, y, isInitial = false) {
+// Create a single solid block
+function createBlock(x, y) {
   const color = BLOCK_COLORS[Math.floor(Math.random() * BLOCK_COLORS.length)];
 
-  // Create a compound body with multiple segments for jelly effect
-  const segmentWidth = BLOCK_WIDTH / 5;
-  const segments = [];
-  const segmentConstraints = [];
-
-  // Create 5 segments
-  for (let i = 0; i < 5; i++) {
-    const segX = x - BLOCK_WIDTH / 2 + segmentWidth / 2 + i * segmentWidth;
-    const segment = Bodies.rectangle(segX, y, segmentWidth, BLOCK_HEIGHT, {
-      density: 0.001,
-      friction: 0.8,
-      restitution: 0.3,
-      render: {
-        fillStyle: color,
-      },
-    });
-    segments.push(segment);
-  }
-
-  // Add segments to world
-  World.add(world, segments);
-
-  // Connect segments with soft constraints for jelly effect
-  for (let i = 0; i < segments.length - 1; i++) {
-    const constraint = Constraint.create({
-      bodyA: segments[i],
-      bodyB: segments[i + 1],
-      stiffness: 0.5,
-      damping: 0.1,
-      length: 0,
-      render: {
-        visible: false,
-      },
-    });
-    segmentConstraints.push(constraint);
-    World.add(world, constraint);
-  }
-
-  // Add vertical constraints to maintain height
-  for (let i = 0; i < segments.length; i++) {
-    // Create invisible anchor points for vertical stability
-    const topAnchor = { x: segments[i].position.x, y: y - BLOCK_HEIGHT / 2 };
-    const bottomAnchor = { x: segments[i].position.x, y: y + BLOCK_HEIGHT / 2 };
-
-    const topConstraint = Constraint.create({
-      bodyA: segments[i],
-      pointA: { x: 0, y: -BLOCK_HEIGHT / 2 },
-      pointB: topAnchor,
-      stiffness: 0.3,
-      damping: 0.05,
-      render: {
-        visible: false,
-      },
-    });
-
-    segmentConstraints.push(topConstraint);
-    World.add(world, topConstraint);
-  }
-
-  // Store block data
-  const block = {
-    segments: segments,
-    constraints: segmentConstraints,
-    color: color,
-    isLinked: isInitial,
-  };
-
-  blocks.push(block);
-
-  // Link blocks that are touching
-  if (!isInitial) {
-    setTimeout(() => linkNearbyBlocks(block), 100);
-  }
-}
-
-// Link blocks when they touch
-function linkNearbyBlocks(newBlock) {
-  const linkDistance = BLOCK_HEIGHT * 1.5;
-
-  newBlock.segments.forEach((newSegment) => {
-    blocks.forEach((existingBlock) => {
-      if (existingBlock === newBlock || !existingBlock.isLinked) return;
-
-      existingBlock.segments.forEach((existingSegment) => {
-        const distance = Math.sqrt(
-          Math.pow(newSegment.position.x - existingSegment.position.x, 2) +
-            Math.pow(newSegment.position.y - existingSegment.position.y, 2)
-        );
-
-        if (distance < linkDistance) {
-          // Create a link between touching blocks
-          const link = Constraint.create({
-            bodyA: newSegment,
-            bodyB: existingSegment,
-            stiffness: 0.4,
-            damping: 0.1,
-            render: {
-              visible: false,
-            },
-          });
-
-          World.add(world, link);
-          newBlock.constraints.push(link);
-          newBlock.isLinked = true;
-        }
-      });
-    });
+  const block = Bodies.rectangle(x, y, BLOCK_WIDTH, BLOCK_HEIGHT, {
+    density: 0.0008,
+    friction: 0.6,
+    restitution: 0.2,
+    frictionAir: 0.01,
+    slop: 0.05,
+    render: {
+      fillStyle: color,
+      strokeStyle: "#000",
+      lineWidth: 2,
+    },
   });
+
+  World.add(world, block);
+  blocks.push(block);
+  blockCount++;
 }
 
 // Handle tap/click to drop block
@@ -264,10 +178,9 @@ function handleTap(event) {
   }
 
   // Drop block from top of screen at tap position
-  const y = 50;
+  const y = 20;
 
-  createBlock(x, y, false);
-  blockCount++;
+  createBlock(x, y);
   updateBlockCount();
 
   // Cooldown to prevent spam
