@@ -19,9 +19,8 @@ let blockCount = 0;
 let canDropBlock = true;
 let dropCooldown = 300; // ms
 
-// Block properties
-const BLOCK_WIDTH = 70;
-const BLOCK_HEIGHT = 35;
+// Block properties - will be calculated based on screen size
+let BLOCK_SIZE;
 const BLOCK_COLORS = [
   "#FF6B6B",
   "#4ECDC4",
@@ -37,6 +36,16 @@ const BLOCK_COLORS = [
 const TOWER_ROWS = 5;
 const TOWER_COLS = 4;
 
+// Calculate optimal block size based on screen
+function calculateBlockSize(screenWidth) {
+  // Make blocks fit nicely on screen - aim for ~80% of width for the tower
+  const availableWidth = screenWidth * 0.8;
+  const blockSize = Math.floor(availableWidth / TOWER_COLS);
+  
+  // Clamp between reasonable min/max for mobile
+  return Math.max(40, Math.min(blockSize, 80));
+}
+
 // Initialize the game
 function init() {
   canvas = document.getElementById("game-canvas");
@@ -46,6 +55,9 @@ function init() {
   const height = window.innerHeight - 60; // Account for score panel
   canvas.width = width;
   canvas.height = height;
+  
+  // Calculate block size based on screen
+  BLOCK_SIZE = calculateBlockSize(width);
 
   // Create engine with better physics settings
   engine = Engine.create({
@@ -132,8 +144,8 @@ function createInitialTower() {
   for (let row = 0; row < TOWER_ROWS; row++) {
     for (let col = 0; col < TOWER_COLS; col++) {
       const x =
-        centerX - ((TOWER_COLS - 1) * BLOCK_WIDTH) / 2 + col * BLOCK_WIDTH;
-      const y = startY - row * BLOCK_HEIGHT;
+        centerX - ((TOWER_COLS - 1) * BLOCK_SIZE) / 2 + col * BLOCK_SIZE;
+      const y = startY - row * BLOCK_SIZE;
 
       createBlock(x, y);
     }
@@ -142,11 +154,11 @@ function createInitialTower() {
   updateBlockCount();
 }
 
-// Create a single solid block
+// Create a single solid square block (1:1 ratio)
 function createBlock(x, y) {
   const color = BLOCK_COLORS[Math.floor(Math.random() * BLOCK_COLORS.length)];
 
-  const block = Bodies.rectangle(x, y, BLOCK_WIDTH, BLOCK_HEIGHT, {
+  const block = Bodies.rectangle(x, y, BLOCK_SIZE, BLOCK_SIZE, {
     density: 0.0008,
     friction: 0.6,
     restitution: 0.2,
@@ -178,7 +190,7 @@ function handleTap(event) {
   }
 
   // Drop block from top of screen at tap position
-  const y = 20;
+  const y = BLOCK_SIZE / 2;
 
   createBlock(x, y);
   updateBlockCount();
@@ -207,6 +219,9 @@ function handleResize() {
   render.options.height = height;
   render.canvas.width = width;
   render.canvas.height = height;
+  
+  // Recalculate block size
+  BLOCK_SIZE = calculateBlockSize(width);
 
   // Update ground and walls
   Body.setPosition(ground, { x: width / 2, y: height - 10 });
