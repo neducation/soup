@@ -49,12 +49,19 @@ function calculateBlockSize(screenWidth) {
 // Initialize the game
 function init() {
   canvas = document.getElementById("game-canvas");
+  const scorePanel = document.getElementById("score-panel");
 
-  // Set canvas size
+  // Get accurate dimensions
   const width = window.innerWidth;
-  const height = window.innerHeight - 60; // Account for score panel
+  const scorePanelHeight = scorePanel.offsetHeight;
+  const height = window.innerHeight - scorePanelHeight;
+
+  // Set canvas size with proper pixel ratio
+  const dpr = window.devicePixelRatio || 1;
   canvas.width = width;
   canvas.height = height;
+  canvas.style.width = width + "px";
+  canvas.style.height = height + "px";
 
   // Calculate block size based on screen
   BLOCK_SIZE = calculateBlockSize(width);
@@ -82,7 +89,7 @@ function init() {
       height: height,
       wireframes: false,
       background: "#1a1a2e",
-      pixelRatio: window.devicePixelRatio || 1,
+      pixelRatio: 1, // Handle pixel ratio manually
     },
   });
 
@@ -127,8 +134,11 @@ function init() {
   canvas.addEventListener("touchstart", handleTap, { passive: false });
   canvas.addEventListener("click", handleTap);
 
-  // Handle window resize
+  // Handle window resize and orientation change
   window.addEventListener("resize", handleResize);
+  window.addEventListener("orientationchange", () => {
+    setTimeout(handleResize, 100);
+  });
 
   // Run the engine
   Engine.run(engine);
@@ -209,11 +219,15 @@ function updateBlockCount() {
 
 // Handle window resize
 function handleResize() {
+  const scorePanel = document.getElementById("score-panel");
   const width = window.innerWidth;
-  const height = window.innerHeight - 60;
+  const scorePanelHeight = scorePanel.offsetHeight;
+  const height = window.innerHeight - scorePanelHeight;
 
   canvas.width = width;
   canvas.height = height;
+  canvas.style.width = width + "px";
+  canvas.style.height = height + "px";
 
   render.options.width = width;
   render.options.height = height;
