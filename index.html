@@ -14,10 +14,24 @@
   <body>
     <div id="game-container">
       <div id="score-panel">
-        <div id="score">Blocks: <span id="block-count">20</span></div>
-        <div id="instructions">Tap to drop blocks!</div>
+        <div class="score-item">
+          <div class="score-label">Score</div>
+          <div class="score-value" id="score-value">0</div>
+          <div class="combo" id="combo-value"></div>
+        </div>
+        <div class="score-item center">
+          <div class="score-label">Blocks</div>
+          <div class="score-value" id="block-count">0</div>
+        </div>
+        <div class="score-item">
+          <div class="score-label">High Score</div>
+          <div class="score-value" id="high-score-value">0</div>
+        </div>
       </div>
       <canvas id="game-canvas"></canvas>
+      <div id="instructions">
+        🎯 Stack blocks high! Higher placement = more points. Build combos!
+      </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
