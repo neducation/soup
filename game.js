@@ -24,6 +24,9 @@ let combo = 0;
 let targetHeight = 0;
 let gameStarted = false;
 let fallenBlocks = [];
+let cleanupInterval;
+let towerCenterX;
+let towerGroundY;
 
 // Block properties - will be calculated based on screen size
 let BLOCK_SIZE;
@@ -153,6 +156,12 @@ function init() {
   // Check for fallen blocks
   Events.on(engine, "afterUpdate", checkFallenBlocks);
 
+  // Start cleanup interval to remove fallen blocks
+  cleanupInterval = setInterval(cleanupFallenBlocks, 2000);
+
+  // Draw tower zone guide
+  Events.on(render, "afterRender", drawTowerZone);
+
   // Run the engine
   Engine.run(engine);
   Render.run(render);
@@ -162,6 +171,10 @@ function init() {
 function createInitialTower() {
   const centerX = canvas.width / 2;
   const startY = canvas.height - 30; // Start just above ground
+
+  // Store tower reference points
+  towerCenterX = centerX;
+  towerGroundY = startY;
 
   // Create a 6x8 wall of blocks (6 wide, 8 tall)
   for (let row = 0; row < TOWER_ROWS; row++) {
@@ -191,6 +204,8 @@ function createBlock(x, y, isInitial = false) {
     frictionAir: 0.01,
     slop: 0.05,
     isInitial: isInitial,
+    createdAt: Date.now(),
+    scored: false,
     render: {
       fillStyle: color,
       strokeStyle: "#000",
@@ -229,11 +244,15 @@ function handleTap(event) {
 
   // Track when block lands for scoring
   let hasLanded = false;
+  let landCheckCount = 0;
   const landCheck = setInterval(() => {
-    if (newBlock.speed < 0.5 && !hasLanded) {
+    landCheckCount++;
+    if ((newBlock.speed < 0.5 && !hasLanded) || landCheckCount > 50) {
       hasLanded = true;
       clearInterval(landCheck);
-      calculateScore(newBlock);
+      if (landCheckCount <= 50) {
+        calculateScore(newBlock);
+      }
     }
   }, 100);
 
@@ -248,12 +267,22 @@ function handleTap(event) {
 
 // Calculate score based on block placement
 function calculateScore(block) {
+  if (block.scored) return; // Already scored this block
+  block.scored = true;
+
   const blockY = block.position.y;
-  const towerCenterX = canvas.width / 2;
   const blockX = block.position.x;
 
-  // Check if block is on the tower (not fallen)
-  if (blockY < canvas.height - 50) {
+  // Define tower area (center zone)
+  const towerWidth = TOWER_COLS * BLOCK_SIZE * 1.5;
+  const towerLeft = towerCenterX - towerWidth / 2;
+  const towerRight = towerCenterX + towerWidth / 2;
+
+  // Check if block is in the tower zone and not at ground level
+  const isInTowerZone = blockX >= towerLeft && blockX <= towerRight;
+  const isAboveGround = blockY < towerGroundY - BLOCK_SIZE;
+
+  if (isInTowerZone && isAboveGround) {
     // Height bonus - higher placement = more points
     const heightScore = Math.max(0, Math.floor((canvas.height - blockY) / 10));
 
@@ -276,7 +305,7 @@ function calculateScore(block) {
       showScorePopup(blockX, blockY, earnedPoints);
     }
   } else {
-    // Block fell off - reset combo
+    // Block fell outside tower zone - reset combo but don't penalize
     combo = 0;
   }
 
@@ -297,17 +326,82 @@ function showScorePopup(x, y, points) {
   }, 1000);
 }
 
-// Check for blocks that have fallen off screen
+// Check for blocks that have fallen off screen or to the sides
 function checkFallenBlocks() {
-  blocks.forEach((block, index) => {
-    if (block.position.y > canvas.height + 100) {
-      // Block fell off screen
+  const towerWidth = TOWER_COLS * BLOCK_SIZE * 1.5;
+  const towerLeft = towerCenterX - towerWidth / 2;
+  const towerRight = towerCenterX + towerWidth / 2;
+
+  blocks.forEach((block) => {
+    const isOutsideTowerZone =
+      block.position.x < towerLeft || block.position.x > towerRight;
+    const isOnGround = block.position.y > towerGroundY;
+    const isFallenOff = block.position.y > canvas.height + 50;
+
+    // Mark blocks that have fallen to the sides or off screen
+    if ((isOutsideTowerZone && isOnGround) || isFallenOff) {
       if (!fallenBlocks.includes(block.id)) {
         fallenBlocks.push(block.id);
-        combo = 0; // Reset combo when blocks fall
       }
     }
   });
+}
+
+// Clean up fallen blocks periodically
+function cleanupFallenBlocks() {
+  const blocksToRemove = [];
+
+  blocks.forEach((block, index) => {
+    // Remove blocks that are marked as fallen and have been sitting for a while
+    if (fallenBlocks.includes(block.id)) {
+      const age = Date.now() - block.createdAt;
+      // Remove after 3 seconds
+      if (age > 3000) {
+        blocksToRemove.push(block);
+      }
+    }
+
+    // Always remove blocks way off screen
+    if (
+      block.position.y > canvas.height + 200 ||
+      block.position.x < -100 ||
+      block.position.x > canvas.width + 100
+    ) {
+      blocksToRemove.push(block);
+    }
+  });
+
+  // Remove blocks from world and array
+  blocksToRemove.forEach((block) => {
+    World.remove(world, block);
+    const index = blocks.indexOf(block);
+    if (index > -1) {
+      blocks.splice(index, 1);
+    }
+    const fallenIndex = fallenBlocks.indexOf(block.id);
+    if (fallenIndex > -1) {
+      fallenBlocks.splice(fallenIndex, 1);
+    }
+  });
+}
+
+// Draw tower zone guide
+function drawTowerZone() {
+  const context = render.context;
+  const towerWidth = TOWER_COLS * BLOCK_SIZE * 1.5;
+  const towerLeft = towerCenterX - towerWidth / 2;
+
+  // Draw subtle zone indicator
+  context.strokeStyle = "rgba(102, 126, 234, 0.3)";
+  context.lineWidth = 2;
+  context.setLineDash([5, 5]);
+  context.beginPath();
+  context.moveTo(towerLeft, towerGroundY);
+  context.lineTo(towerLeft, 0);
+  context.moveTo(towerLeft + towerWidth, towerGroundY);
+  context.lineTo(towerLeft + towerWidth, 0);
+  context.stroke();
+  context.setLineDash([]);
 }
 
 // Update score display
