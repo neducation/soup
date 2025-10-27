@@ -18,6 +18,12 @@ let walls = [];
 let blockCount = 0;
 let canDropBlock = true;
 let dropCooldown = 300; // ms
+let score = 0;
+let highScore = 0;
+let combo = 0;
+let targetHeight = 0;
+let gameStarted = false;
+let fallenBlocks = [];
 
 // Block properties - will be calculated based on screen size
 let BLOCK_SIZE;
@@ -32,18 +38,18 @@ const BLOCK_COLORS = [
   "#85C1E2",
 ];
 
-// Tower configuration
-const TOWER_ROWS = 5;
-const TOWER_COLS = 4;
+// Tower configuration - more blocks, smaller size
+const TOWER_ROWS = 8;
+const TOWER_COLS = 6;
 
 // Calculate optimal block size based on screen
 function calculateBlockSize(screenWidth) {
-  // Make blocks fit nicely on screen - aim for ~80% of width for the tower
-  const availableWidth = screenWidth * 0.8;
+  // Much smaller blocks - aim for blocks to be ~20-30px
+  const availableWidth = screenWidth * 0.6;
   const blockSize = Math.floor(availableWidth / TOWER_COLS);
 
-  // Clamp between reasonable min/max for mobile
-  return Math.max(40, Math.min(blockSize, 80));
+  // Smaller clamp range for tiny blocks
+  return Math.max(20, Math.min(blockSize, 35));
 }
 
 // Initialize the game
